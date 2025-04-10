@@ -1,96 +1,141 @@
-from sqlalchemy.orm import Session
+"""
+Contact repository for database operations.
+
+This module provides functions for CRUD operations on contacts,
+including search functionality.
+"""
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 from src.database.models import Contact, User
 from src.schemas import ContactCreate, ContactUpdate
 
-def create_contact(db: Session, contact: ContactCreate, user: User):
+async def create_contact(db: AsyncSession, contact: ContactCreate, user_id: int) -> Contact:
     """
-        Create a new contact and associate it with the given user.
-
-        Args:
-            db (Session): Database session.
-            contact (ContactCreate): The contact details to be added.
-            user (User): The user to whom the contact belongs.
-
-        Returns:
-            Contact: The newly created contact.
-        """
-    db_contact = Contact(**contact.dict(), owner_id=user.id)
+    Create a new contact.
+    
+    Args:
+        db: AsyncSession - The database session
+        contact: ContactCreate - The contact data to create
+        user_id: int - The ID of the user creating the contact
+        
+    Returns:
+        Contact: The created contact
+    """
+    db_contact = Contact(
+        **contact.model_dump(),
+        owner_id=user_id
+    )
     db.add(db_contact)
-    db.commit()
-    db.refresh(db_contact)
+    await db.commit()
+    await db.refresh(db_contact)
     return db_contact
 
-def get_contacts(db: Session, user_id: int):
+async def get_contacts(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> list[Contact]:
     """
-        Retrieve all contacts for a specific user.
-
-        Args:
-            db (Session): Database session.
-            user_id (int): The ID of the user.
-
-        Returns:
-            list[Contact]: The list of contacts.
-        """
-    return db.query(Contact).filter(Contact.owner_id == user_id).all()
-
-def get_contact(db: Session, contact_id: int, user_id: int):
+    Get all contacts for a user with pagination.
+    
+    Args:
+        db: AsyncSession - The database session
+        user_id: int - The ID of the user
+        skip: int - Number of contacts to skip (for pagination)
+        limit: int - Maximum number of contacts to return
+        
+    Returns:
+        list[Contact]: List of contacts belonging to the user
     """
-        Retrieve a specific contact for a given user.
+    result = await db.execute(
+        select(Contact)
+        .where(Contact.owner_id == user_id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
 
-        Args:
-            db (Session): Database session.
-            contact_id (int): The ID of the contact.
-            user_id (int): The ID of the user.
-
-        Returns:
-            Contact: The requested contact.
-
-        Raises:
-            HTTPException: If the contact is not found.
-        """
-    return db.query(Contact).filter(Contact.id == contact_id, Contact.owner_id == user_id).first()
-
-def update_contact(db: Session, contact_id: int, contact: ContactUpdate, user_id: int):
+async def get_contact(db: AsyncSession, contact_id: int, user_id: int) -> Contact | None:
     """
-        Update a contact's details for a specific user.
+    Get a specific contact by ID.
+    
+    Args:
+        db: AsyncSession - The database session
+        contact_id: int - The ID of the contact to retrieve
+        user_id: int - The ID of the user who owns the contact
+        
+    Returns:
+        Contact | None: The contact if found, None otherwise
+    """
+    result = await db.execute(
+        select(Contact)
+        .where(Contact.id == contact_id)
+        .where(Contact.owner_id == user_id)
+    )
+    return result.scalar_one_or_none()
 
-        Args:
-            db (Session): Database session.
-            contact_id (int): The ID of the contact to update.
-            contact (ContactUpdate): The updated contact details.
-            user_id (int): The ID of the user.
-
-        Returns:
-            Contact: The updated contact.
-
-        Raises:
-            HTTPException: If the contact is not found.
-        """
-    db_contact = db.query(Contact).filter(Contact.id == contact_id, Contact.owner_id == user_id).first()
-    if db_contact:
-        for key, value in contact.dict().items():
-            setattr(db_contact, key, value)
-        db.commit()
-        db.refresh(db_contact)
+async def update_contact(db: AsyncSession, contact_id: int, contact: ContactUpdate, user_id: int) -> Contact | None:
+    """
+    Update a contact's information.
+    
+    Args:
+        db: AsyncSession - The database session
+        contact_id: int - The ID of the contact to update
+        contact: ContactUpdate - The updated contact data
+        user_id: int - The ID of the user who owns the contact
+        
+    Returns:
+        Contact | None: The updated contact if found, None otherwise
+    """
+    db_contact = await get_contact(db, contact_id, user_id)
+    if not db_contact:
+        return None
+        
+    for key, value in contact.model_dump(exclude_unset=True).items():
+        setattr(db_contact, key, value)
+        
+    await db.commit()
+    await db.refresh(db_contact)
     return db_contact
 
-def delete_contact(db: Session, contact_id: int, user_id: int):
+async def delete_contact(db: AsyncSession, contact_id: int, user_id: int) -> Contact | None:
     """
-        Delete a contact for a specific user.
-
-        Args:
-            db (Session): Database session.
-            contact_id (int): The ID of the contact to delete.
-            user_id (int): The ID of the user.
-
-        Returns:
-            Contact: The deleted contact.
-
-        Raises:
-            HTTPException: If the contact is not found.
-        """
-    db_contact = db.query(Contact).filter(Contact.id == contact_id, Contact.owner_id == user_id).first()
-    if db_contact:
-        db.delete(db_contact)
-        db.commit()
+    Delete a contact.
+    
+    Args:
+        db: AsyncSession - The database session
+        contact_id: int - The ID of the contact to delete
+        user_id: int - The ID of the user who owns the contact
+        
+    Returns:
+        Contact | None: The deleted contact if found, None otherwise
+    """
+    db_contact = await get_contact(db, contact_id, user_id)
+    if not db_contact:
+        return None
+        
+    await db.delete(db_contact)
+    await db.commit()
     return db_contact
+
+async def search_contacts(db: AsyncSession, user_id: int, query: str) -> list[Contact]:
+    """
+    Search for contacts by name or email.
+    
+    Args:
+        db: AsyncSession - The database session
+        user_id: int - The ID of the user who owns the contacts
+        query: str - The search query to match against names or email
+        
+    Returns:
+        list[Contact]: List of contacts matching the search query
+    """
+    result = await db.execute(
+        select(Contact)
+        .where(Contact.owner_id == user_id)
+        .where(
+            or_(
+                Contact.first_name.ilike(f"%{query}%"),
+                Contact.last_name.ilike(f"%{query}%"),
+                Contact.email.ilike(f"%{query}%")
+            )
+        )
+    )
+    return result.scalars().all()

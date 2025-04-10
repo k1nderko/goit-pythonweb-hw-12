@@ -1,150 +1,192 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, File, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, status, Security, BackgroundTasks, Request, File, UploadFile
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer, HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.services.limiter import limiter
 from sqlalchemy.orm import Session
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import JWTError, jwt
-from src.database.db import get_db
-from src.schemas import UserCreate, UserResponse, Token
-from src.repository.users import create_user, get_user_by_email, verify_user_email
-from src.services.auth import verify_password, create_access_token
+from src.database.session import get_async_db
+from src.schemas import UserCreate, UserResponse, TokenResponse
+from src.repository import users as users_repo
+from src.services.auth import auth_service
 from src.database.models import User
-from src.services.auth import SECRET_KEY, ALGORITHM
-from src.conf.mail import send_verification_email
+from src.conf.config import settings
+from src.services.email import send_verification_email
 from src.services.cloudinary_service import upload_avatar
 import shutil
 import os
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+router = APIRouter(tags=["auth"])
+security = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
+async def register(
+    request: Request,
+    user: UserCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_async_db)
+):
     """
-        Sign up a new user and send an email verification link.
-
-        Args:
-            user_data (UserCreate): The user's email and password for registration.
-            db (Session): Database session.
-
-        Returns:
-            UserResponse: The created user object.
-        """
-    existing_user = get_user_by_email(db, user_data.email)
+    Register a new user.
+    
+    Args:
+        request: Request - The request object
+        user: UserCreate - The user data to create
+        background_tasks: BackgroundTasks - For sending verification email
+        db: AsyncSession - The database session
+        
+    Returns:
+        UserResponse: The created user
+        
+    Raises:
+        HTTPException: If the email is already registered
+    """
+    existing_user = await users_repo.get_user_by_email(db, user.email)
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered"
+        )
+    
+    db_user = await users_repo.create_user(db, user)
+    
+    # Generate verification token and send email
+    verification_token = auth_service.create_verification_token(user.email)
+    background_tasks.add_task(send_verification_email, user.email, verification_token)
+    
+    return db_user
 
-    user = create_user(db, user_data)
 
-    token = create_access_token(data={"sub": user.email})
-
-    await send_verification_email(user.email, token)
-
-    return user
-
-
-@router.get("/verify-email/{token}")
-async def verify_email(token: str, db: Session = Depends(get_db)):
+@router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
+async def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_async_db)
+):
     """
-        Verify the email address by decoding the token.
-
-        Args:
-            token (str): The email verification token.
-            db (Session): Database session.
-
-        Returns:
-            dict: A message indicating the email verification status.
-        """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
-
-        user = get_user_by_email(db, email)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        verify_user_email(db, email)
-
-        return {"message": "Email successfully verified"}
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
-
-
-@router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    Login a user.
+    
+    Args:
+        request: Request - The request object
+        form_data: OAuth2PasswordRequestForm - The login credentials
+        db: AsyncSession - The database session
+        
+    Returns:
+        TokenResponse: The access and refresh tokens
+        
+    Raises:
+        HTTPException: If the credentials are invalid or email is not verified
     """
-        Log in an existing user by verifying credentials and returning a JWT access token.
-
-        Args:
-            form_data (OAuth2PasswordRequestForm): The form containing username and password.
-            db (Session): Database session.
-
-        Returns:
-            Token: JWT access token for authenticated users.
-        """
-    user = get_user_by_email(db, form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
-
+    user = await users_repo.get_user_by_email(db, form_data.username)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    if not auth_service.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
     if not user.is_verified:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified"
+        )
+    
+    # Generate access and refresh tokens
+    access_token = auth_service.create_access_token({"sub": user.email})
+    refresh_token = auth_service.create_refresh_token({"sub": user.email})
+    
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
 
-
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+@router.get("/verify/{token}", status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
+async def verify_email(
+    request: Request,
+    token: str,
+    db: AsyncSession = Depends(get_async_db)
+):
     """
-        Retrieve the current user by decoding the JWT token.
+    Verify a user's email.
+    
+    Args:
+        request: Request - The request object
+        token: str - The verification token
+        db: AsyncSession - The database session
+        
+    Returns:
+        dict: A success message
+        
+    Raises:
+        HTTPException: If the token is invalid or expired
+    """
+    email = auth_service.verify_token(token)
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token"
+        )
+    
+    user = await users_repo.verify_user_email(db, email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return {"message": "Email verified successfully"}
 
-        Args:
-            db (Session): Database session.
-            token (str): JWT token.
-
-        Returns:
-            User: The user associated with the token.
-
-        Raises:
-            HTTPException: If the token is invalid or user is not found.
-        """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
-
-        user = get_user_by_email(db, email)
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
-
-        if not user.is_verified:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
-
-        return user
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
 @router.get("/me", response_model=UserResponse)
-@limiter.limit("5/minute")
-async def read_current_user(request: Request, current_user: User = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Security(security),
+    db: AsyncSession = Depends(get_async_db)
+):
     """
-        Retrieve the current logged-in user's details.
+    Get the current authenticated user.
+    
+    Args:
+        request: Request - The request object
+        credentials: HTTPAuthorizationCredentials - The bearer token
+        db: AsyncSession - The database session
+        
+    Returns:
+        UserResponse: The current user
+        
+    Raises:
+        HTTPException: If the token is invalid or user not found
+    """
+    token = credentials.credentials
+    email = auth_service.verify_token(token)
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    user = await users_repo.get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return user
 
-        Args:
-            request (Request): The incoming request.
-            current_user (User): The current authenticated user.
-
-        Returns:
-            UserResponse: The user's profile information.
-        """
-    return current_user
 
 @router.post("/upload-avatar", response_model=UserResponse)
 async def upload_user_avatar(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_async_db),
     file: UploadFile = File(...)
 ):
     """

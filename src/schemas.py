@@ -1,45 +1,37 @@
-from pydantic import BaseModel, EmailStr
 from datetime import date
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
 
-
-class UserCreate(BaseModel):
+class UserBase(BaseModel):
     email: EmailStr
-    password: str
+    full_name: str = Field(min_length=2, max_length=50)
 
-class UserResponse(BaseModel):
+class UserCreate(UserBase):
+    password: str = Field(min_length=6)
+    confirm_password: str = Field(min_length=6)
+
+class UserResponse(UserBase):
     id: int
-    email: str
     is_active: bool
     is_verified: bool
-    avatar: Optional[str] = None
+    avatar: str | None = None
 
     class Config:
         from_attributes = True
 
-class Token(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     token_type: str
 
-
 class ContactBase(BaseModel):
-    first_name: str
-    last_name: str
+    first_name: str = Field(min_length=2, max_length=50)
+    last_name: str = Field(min_length=2, max_length=50)
     email: EmailStr
-    phone_number: str
-    birth_date: date
-    additional_info: Optional[str] = None
+    phone: str = Field(pattern=r"^\+?1?\d{9,15}$")
+    birthday: date
+    notes: str | None = None
 
 class ContactCreate(ContactBase):
     pass
-
-class ContactUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    phone_number: Optional[str] = None
-    birth_date: Optional[date] = None
-    additional_info: Optional[str] = None
 
 class ContactResponse(ContactBase):
     id: int
@@ -47,3 +39,11 @@ class ContactResponse(ContactBase):
 
     class Config:
         from_attributes = True
+
+class ContactUpdate(ContactBase):
+    first_name: str | None = None
+    last_name: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
+    birthday: date | None = None
+    notes: str | None = None

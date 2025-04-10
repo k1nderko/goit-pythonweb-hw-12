@@ -1,63 +1,63 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from src.database.models import User
 from src.schemas import UserCreate
-from src.services.auth import hash_password
+from src.utils.password import get_password_hash
 
 
-def create_user(db: Session, user_data: UserCreate):
+async def create_user(db: AsyncSession, user: UserCreate) -> User:
     """
-        Create a new user in the database.
-
-        This function checks if a user with the given email already exists. If not,
-        it hashes the user's password, creates a new user record, and saves it to the database.
-
-        Args:
-            db (Session): The database session.
-            user_data (UserCreate): The user data for creating a new user.
-
-        Returns:
-            User: The created user object, or None if a user with the same email already exists.
-        """
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
-    if existing_user:
-        return None
-
-    hashed_password = hash_password(user_data.password)
-    new_user = User(email=user_data.email, hashed_password=hashed_password, is_verified=False)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
-
-
-def get_user_by_email(db: Session, email: str):
+    Create a new user.
+    
+    Args:
+        db: AsyncSession - The database session
+        user: UserCreate - The user data to create
+        
+    Returns:
+        User: The created user
     """
-        Retrieve a user by their email address.
+    db_user = User(
+        email=user.email,
+        hashed_password=get_password_hash(user.password),
+        full_name=user.full_name
+    )
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
 
-        Args:
-            db (Session): The database session.
-            email (str): The email of the user to fetch.
 
-        Returns:
-            User: The user object, or None if no user with the given email exists.
-        """
-    return db.query(User).filter(User.email == email).first()
-
-
-def verify_user_email(db: Session, email: str):
+async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     """
-        Verify the email of a user by setting the `is_verified` flag to True.
+    Get a user by email.
+    
+    Args:
+        db: AsyncSession - The database session
+        email: str - The email to search for
+        
+    Returns:
+        User | None: The user if found, None otherwise
+    """
+    result = await db.execute(
+        select(User).where(User.email == email)
+    )
+    return result.scalar_one_or_none()
 
-        Args:
-            db (Session): The database session.
-            email (str): The email of the user to verify.
 
-        Returns:
-            User: The user object with the updated verification status.
-        """
-    user = db.query(User).filter(User.email == email).first()
-    if user and not user.is_verified:
+async def verify_user_email(db: AsyncSession, email: str) -> User | None:
+    """
+    Verify a user's email.
+    
+    Args:
+        db: AsyncSession - The database session
+        email: str - The email to verify
+        
+    Returns:
+        User | None: The verified user if found, None otherwise
+    """
+    user = await get_user_by_email(db, email)
+    if user:
         user.is_verified = True
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
     return user

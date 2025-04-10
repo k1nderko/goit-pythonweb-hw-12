@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 import os
 from dotenv import load_dotenv
+from src.services.email import send_email
 
 load_dotenv()
 
@@ -23,20 +24,17 @@ conf = ConnectionConfig(
 
 async def send_verification_email(email: str, token: str):
     """
-        Send an email verification message to the user.
-
-        Args:
-            email (str): The recipient's email address.
-            token (str): The email verification token.
-
-        Returns:
-            None
-        """
-    message = MessageSchema(
-        subject="Verify your email",
-        recipients=[email],
-        body=f"Click the link to verify your email: http://127.0.0.1:8000/auth/verify-email?token={token}",
-        subtype="html"
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    Send a verification email to the user.
+    """
+    subject = "Verify your email"
+    body = f"""
+    <html>
+        <body>
+            <h1>Welcome to Contact Management System!</h1>
+            <p>Please click the link below to verify your email address:</p>
+            <p><a href="http://localhost:8000/api/auth/verify/{token}">Verify Email</a></p>
+            <p>If you did not create an account, please ignore this email.</p>
+        </body>
+    </html>
+    """
+    await send_email(email, subject, body)
