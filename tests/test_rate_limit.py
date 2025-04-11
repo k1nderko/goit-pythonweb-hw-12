@@ -38,11 +38,11 @@ async def test_rate_limit_auth_endpoints(async_client: AsyncClient, db):
         assert response.status_code == status.HTTP_201_CREATED
 
         # Verify the user's email
-        token = auth_service.create_verification_token("ratelimit@example.com")
-        response = await async_client.get(f"/api/auth/verify/{token}")
+        verification_token = await auth_service.create_verification_token({"sub": "ratelimit@example.com"})
+        response = await async_client.post(f"/api/auth/verify/{verification_token}")
         assert response.status_code == status.HTTP_200_OK
 
-        # Make 5 login attempts
+        # Try to login multiple times
         for _ in range(5):
             response = await async_client.post(
                 "/api/auth/login",

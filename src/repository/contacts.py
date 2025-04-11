@@ -138,4 +138,8 @@ async def search_contacts(db: AsyncSession, user_id: int, query: str) -> list[Co
             )
         )
     )
-    return result.scalars().all()
+    contacts = result.scalars().all()
+    # Ensure each contact has the owner_id field set
+    for contact in contacts:
+        contact.owner_id = user_id
+    return contacts

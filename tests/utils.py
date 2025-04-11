@@ -1,8 +1,9 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
 from contextlib import contextmanager
+from fastapi_mail import ConnectionConfig
 
-async def mock_send_verification_email(email: str, token: str):
+async def mock_send_verification_email(email: str, token: str, base_url: str):
     """
     Mock function for sending verification emails.
     """
@@ -21,11 +22,15 @@ async def mock_send_email(to_email: str, subject: str, body: str):
 @contextmanager
 def patch_email_service():
     """
-    Context manager that patches both verification and regular email services.
+    Context manager that patches the email service.
     Usage:
         with patch_email_service():
             # Run tests that need email functionality
     """
-    with patch('src.conf.mail.send_verification_email', mock_send_verification_email), \
-         patch('src.services.email.send_email', mock_send_email):
+    with patch.multiple(
+        'src.services.email',
+        send_verification_email=AsyncMock(return_value=True),
+        send_email=AsyncMock(return_value=True),
+        send_password_reset_email=AsyncMock(return_value=True)
+    ):
         yield 

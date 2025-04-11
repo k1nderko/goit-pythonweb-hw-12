@@ -1,8 +1,15 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime, UTC
+from enum import Enum
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
+
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
 
 class User(Base):
     """
@@ -16,19 +23,20 @@ class User(Base):
             is_verified (bool): Flag indicating if the user's email is verified.
             avatar (Optional[str]): URL or path to the user's avatar image.
             full_name (str): Full name of the user.
+            role (UserRole): User's role (user or admin).
             contacts (List[Contact]): List of contacts associated with the user.
         """
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    full_name = Column(String)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
+    email = Column(String(150), nullable=False, unique=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(150), nullable=True)
+    role = Column(SQLAlchemyEnum(UserRole), default=UserRole.USER, nullable=False)
+    refresh_token = Column(String(255), nullable=True)
     is_verified = Column(Boolean, default=False)
-    avatar = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     contacts = relationship("Contact", back_populates="owner", cascade="all, delete-orphan")
 
@@ -54,10 +62,10 @@ class Contact(Base):
     last_name = Column(String)
     email = Column(String)
     phone = Column(String)
-    birthday = Column(DateTime, nullable=True)
+    birthday = Column(DateTime(timezone=True), nullable=True)
     notes = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     owner_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="contacts")

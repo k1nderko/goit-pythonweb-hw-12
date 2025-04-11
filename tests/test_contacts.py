@@ -20,8 +20,8 @@ async def test_create_contact(async_client: AsyncClient):
         assert register_response.status_code == status.HTTP_201_CREATED
         
         # Verify email
-        verification_token = auth_service.create_verification_token("contact@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
+        verification_token = await auth_service.create_verification_token({"sub": "contact@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
         
         # Login
         login_response = await async_client.post(
@@ -92,8 +92,8 @@ async def test_get_contacts(async_client: AsyncClient):
         assert register_response.status_code == status.HTTP_201_CREATED
         
         # Verify email
-        verification_token = auth_service.create_verification_token("contacts@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
+        verification_token = await auth_service.create_verification_token({"sub": "contacts@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
         
         # Login
         login_response = await async_client.post(
@@ -131,8 +131,8 @@ async def test_get_contact_by_id(async_client: AsyncClient):
         assert register_response.status_code == status.HTTP_201_CREATED
         
         # Verify email
-        verification_token = auth_service.create_verification_token("getcontact@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
+        verification_token = await auth_service.create_verification_token({"sub": "getcontact@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
         
         # Login
         login_response = await async_client.post(
@@ -188,8 +188,8 @@ async def test_update_contact(async_client: AsyncClient):
         assert register_response.status_code == status.HTTP_201_CREATED
         
         # Verify email
-        verification_token = auth_service.create_verification_token("updatecontact@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
+        verification_token = await auth_service.create_verification_token({"sub": "updatecontact@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
         
         # Login
         login_response = await async_client.post(
@@ -254,8 +254,8 @@ async def test_delete_contact(async_client: AsyncClient):
         assert register_response.status_code == status.HTTP_201_CREATED
         
         # Verify email
-        verification_token = auth_service.create_verification_token("deletecontact@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
+        verification_token = await auth_service.create_verification_token({"sub": "deletecontact@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
         
         # Login
         login_response = await async_client.post(
@@ -305,23 +305,23 @@ async def test_search_contacts(async_client: AsyncClient):
         register_response = await async_client.post(
             "/api/auth/register",
             json={
-                "email": "searchcontact@example.com",
+                "email": "search@example.com",
                 "password": "testpassword123",
                 "confirm_password": "testpassword123",
                 "full_name": "Test User"
             }
         )
         assert register_response.status_code == status.HTTP_201_CREATED
-        
+
         # Verify email
-        verification_token = auth_service.create_verification_token("searchcontact@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
-        
+        verification_token = await auth_service.create_verification_token({"sub": "search@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
+
         # Login
         login_response = await async_client.post(
             "/api/auth/login",
             data={
-                "username": "searchcontact@example.com",
+                "username": "search@example.com",
                 "password": "testpassword123"
             }
         )
@@ -380,11 +380,11 @@ async def test_search_contacts_by_email(async_client: AsyncClient):
             }
         )
         assert register_response.status_code == status.HTTP_201_CREATED
-        
+
         # Verify email
-        verification_token = auth_service.create_verification_token("searchbyemail@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
-        
+        verification_token = await auth_service.create_verification_token({"sub": "searchbyemail@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
+
         # Login
         login_response = await async_client.post(
             "/api/auth/login",
@@ -448,11 +448,11 @@ async def test_search_contacts_no_results(async_client: AsyncClient):
             }
         )
         assert register_response.status_code == status.HTTP_201_CREATED
-        
+
         # Verify email
-        verification_token = auth_service.create_verification_token("noresults@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
-        
+        verification_token = await auth_service.create_verification_token({"sub": "noresults@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
+
         # Login
         login_response = await async_client.post(
             "/api/auth/login",
@@ -510,11 +510,11 @@ async def test_rate_limit(async_client: AsyncClient):
             }
         )
         assert register_response.status_code == status.HTTP_201_CREATED
-        
+
         # Verify email
-        verification_token = auth_service.create_verification_token("ratelimit@example.com")
-        await async_client.get(f"/api/auth/verify/{verification_token}")
-        
+        verification_token = await auth_service.create_verification_token({"sub": "ratelimit@example.com"})
+        await async_client.post(f"/api/auth/verify/{verification_token}")
+
         # Login
         login_response = await async_client.post(
             "/api/auth/login",
