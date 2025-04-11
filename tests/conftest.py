@@ -34,29 +34,27 @@ def reset_limiter():
     limiter.reset()
     yield
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_database():
-    # Create tables at the start of the test session
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-    # Drop tables at the end of the test session
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
 @pytest_asyncio.fixture(scope="function")
 async def db():
-    # Start with a clean slate for each test
+    # Create tables at the start of each test
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     
     async with TestingSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
 
 async def override_get_db():
     async with TestingSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
 
 app.dependency_overrides[get_async_db] = override_get_db
 
@@ -89,7 +87,8 @@ async def async_client(mock_email_service):
 @pytest_asyncio.fixture
 async def authenticated_client(async_client, test_user, db):
     # Create test user in DB
-    user_data = test_user
+    user_data = test_user.copy()
+    user_data["email"] = "auth_test@example.com"  # Use a different email to avoid conflicts
     db_user = await create_user(db, UserCreate(**user_data))
     await db.commit()
     
@@ -124,3 +123,6 @@ def test_contact():
         "birthday": "1990-01-01",
         "notes": "Test contact"
     }
+
+def patch_email_service():
+    return patch("src.services.email.send_verification_email", AsyncMock(return_value=True))

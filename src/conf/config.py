@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 import os
 
@@ -20,12 +20,19 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = "your-api-key"
     CLOUDINARY_API_SECRET: str = "your-api-secret"
     
+    # Redis settings
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_user_cache_ttl: int = 3600
+    
     # Test mode
     TESTING: bool = os.getenv("TESTING", "False").lower() == "true"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8"
+    )
 
 def get_settings():
     return Settings()

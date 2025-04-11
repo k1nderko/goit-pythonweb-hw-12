@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from sqlalchemy.orm import relationship, declarative_base
+from datetime import datetime, UTC
 
 Base = declarative_base()
 
@@ -28,8 +27,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     avatar = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     contacts = relationship("Contact", back_populates="owner", cascade="all, delete-orphan")
 
@@ -57,8 +56,8 @@ class Contact(Base):
     phone = Column(String)
     birthday = Column(DateTime, nullable=True)
     notes = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     owner_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="contacts")

@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from src.database.session import get_async_db
 from src.schemas import UserCreate, UserResponse, TokenResponse
+from src.schemas.auth import PasswordResetRequest, PasswordReset
 from src.repository import users as users_repo
 from src.services.auth import auth_service
 from src.database.models import User
 from src.conf.config import settings
-from src.services.email import send_verification_email
+from src.services.email import send_verification_email, send_password_reset_email
 from src.services.cloudinary_service import upload_avatar
 import shutil
 import os
@@ -214,3 +215,46 @@ async def upload_user_avatar(
     db.refresh(current_user)
 
     return current_user
+
+
+@router.post("/request-password-reset", response_model=dict)
+async def request_password_reset(
+    request: PasswordResetRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Request a password reset. Sends an email with a reset link.
+    """
+    user = await users_repo.get_user_by_email(db, request.email)
+    if not user:
+        # Return success even if user doesn't exist to prevent email enumeration
+        return {"message": "If your email is registered, you will receive a password reset link"}
+    
+    token = auth_service.create_password_reset_token(request.email)
+    await send_password_reset_email(request.email, token)
+    
+    return {"message": "If your email is registered, you will receive a password reset link"}
+
+
+@router.post("/reset-password", response_model=dict)
+async def reset_password(
+    reset_data: PasswordReset,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Reset a user's password using a valid reset token.
+    """
+    if reset_data.new_password != reset_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
+    
+    success = await auth_service.reset_password(reset_data.token, reset_data.new_password, db)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+    
+    return {"message": "Password has been reset successfully"}

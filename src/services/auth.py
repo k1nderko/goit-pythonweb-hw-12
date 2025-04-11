@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 from jose import JWTError, jwt
 from fastapi import HTTPException, status, Depends
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.conf.config import settings
 from src.database.session import get_async_db
 from src.repository import users as repository_users
-from src.utils.password import verify_password
+from src.utils.password import verify_password, get_password_hash
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
@@ -43,7 +43,7 @@ class Auth:
             str: The encoded JWT token
         """
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         to_encode.update({"exp": expire})
         token = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return token
@@ -59,7 +59,7 @@ class Auth:
             str: The encoded JWT token
         """
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(days=7)
+        expire = datetime.now(UTC) + timedelta(days=7)
         to_encode.update({"exp": expire})
         token = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return token
@@ -75,7 +75,7 @@ class Auth:
             str: The encoded JWT token
         """
         to_encode = {"sub": email}
-        expire = datetime.utcnow() + timedelta(hours=24)
+        expire = datetime.now(UTC) + timedelta(hours=24)
         to_encode.update({"exp": expire})
         token = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return token
@@ -131,6 +131,67 @@ class Auth:
         if user is None:
             raise credentials_exception
         return user
+
+    def create_password_reset_token(self, email: str) -> str:
+        """
+        Create a password reset token.
+        
+        Args:
+            email: str - The email to encode in the token
+            
+        Returns:
+            str: The encoded JWT token
+        """
+        to_encode = {"sub": email, "type": "password_reset"}
+        expire = datetime.now(UTC) + timedelta(hours=1)  # Token expires in 1 hour
+        to_encode.update({"exp": expire})
+        token = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+        return token
+
+    def verify_password_reset_token(self, token: str) -> Optional[str]:
+        """
+        Verify a password reset token.
+        
+        Args:
+            token: str - The token to verify
+            
+        Returns:
+            Optional[str]: The email from the token if valid, None otherwise
+        """
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            email: str = payload.get("sub")
+            token_type: str = payload.get("type")
+            if email is None or token_type != "password_reset":
+                return None
+            return email
+        except JWTError:
+            return None
+
+    async def reset_password(self, token: str, new_password: str, db: AsyncSession) -> bool:
+        """
+        Reset a user's password using a valid reset token.
+        
+        Args:
+            token: str - The password reset token
+            new_password: str - The new password to set
+            db: AsyncSession - Database session
+            
+        Returns:
+            bool: True if password was reset successfully, False otherwise
+        """
+        email = self.verify_password_reset_token(token)
+        if not email:
+            return False
+            
+        user = await repository_users.get_user_by_email(db, email)
+        if not user:
+            return False
+            
+        hashed_password = get_password_hash(new_password)
+        user.hashed_password = hashed_password
+        await db.commit()
+        return True
 
 # Create a singleton instance
 auth_service = Auth()

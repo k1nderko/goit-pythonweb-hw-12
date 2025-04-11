@@ -3,6 +3,7 @@ from fastapi import status
 from httpx import AsyncClient
 from tests.utils import patch_email_service
 from src.services.limiter import limiter
+from src.services.auth import auth_service
 
 @pytest.mark.asyncio
 async def test_rate_limit_root_endpoint(async_client: AsyncClient):
@@ -19,13 +20,13 @@ async def test_rate_limit_root_endpoint(async_client: AsyncClient):
     assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
 @pytest.mark.asyncio
-async def test_rate_limit_auth_endpoints(async_client: AsyncClient):
+async def test_rate_limit_auth_endpoints(async_client: AsyncClient, db):
     # Reset the limiter before the test
     limiter.reset()
-    
+
     with patch_email_service():
         # Register a user
-        await async_client.post(
+        response = await async_client.post(
             "/api/auth/register",
             json={
                 "email": "ratelimit@example.com",
@@ -34,6 +35,12 @@ async def test_rate_limit_auth_endpoints(async_client: AsyncClient):
                 "full_name": "Test User"
             }
         )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        # Verify the user's email
+        token = auth_service.create_verification_token("ratelimit@example.com")
+        response = await async_client.get(f"/api/auth/verify/{token}")
+        assert response.status_code == status.HTTP_200_OK
 
         # Make 5 login attempts
         for _ in range(5):
