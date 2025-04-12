@@ -1,3 +1,24 @@
+# Docker Compose configuration for FastAPI Contacts Application
+#
+# This configuration sets up a complete development environment with three services:
+# 1. FastAPI Application (app)
+#    - Runs the main application
+#    - Uses Poetry for dependency management
+#    - Hot-reload enabled for development
+#    - Connected to PostgreSQL and Redis
+#
+# 2. PostgreSQL Database (db)
+#    - Stores application data
+#    - Persistent volume for data storage
+#    - Health checks enabled
+#
+# 3. Redis Cache (redis)
+#    - Used for rate limiting and caching
+#    - Health checks enabled
+#
+# All services are connected through a bridge network for secure communication.
+# Environment variables are loaded from .env file for configuration.
+
 version: '3.8'
 
 services:
@@ -8,16 +29,15 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - MAIL_USERNAME=${MAIL_USERNAME}
-      - MAIL_PASSWORD=${MAIL_PASSWORD}
-      - MAIL_FROM=${MAIL_FROM}
-      - CLOUDINARY_NAME=${CLOUDINARY_NAME}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - DATABASE_URL=postgresql://user:password@db:5432/contacts_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -30,12 +50,22 @@ services:
       POSTGRES_PASSWORD: password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d contacts_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
 
   redis:
     image: redis:alpine
     container_name: redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
 

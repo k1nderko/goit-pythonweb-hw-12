@@ -1,3 +1,25 @@
+"""
+Authentication API Router Module
+
+This module provides the API endpoints for user authentication and management.
+It includes user registration, login, email verification, password reset, and user management.
+
+Endpoints:
+- POST /register: Register a new user
+- POST /login: User login
+- POST /refresh: Refresh access token
+- POST /verify/{token}: Verify user email
+- POST /request-verification: Request email verification
+- POST /reset-password: Reset password
+- POST /reset-password/{token}: Confirm password reset
+- GET /me: Get current user info
+- POST /upload-avatar: Upload user avatar
+- PUT /users/{user_id}/role: Update user role (admin only)
+- PUT /users/{user_id}/status: Update user status (admin only)
+
+All endpoints are protected with rate limiting, and sensitive operations require authentication.
+"""
+
 from fastapi import APIRouter, HTTPException, Depends, status, Security, BackgroundTasks, Request, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession

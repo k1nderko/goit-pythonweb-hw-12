@@ -1,8 +1,30 @@
+"""
+Application Configuration Module
+
+This module defines the application settings using Pydantic's BaseSettings.
+It loads configuration from environment variables and provides default values
+for all required settings.
+
+The settings include:
+- Database configuration
+- Authentication settings
+- Email settings
+- Cloudinary settings
+- Redis settings
+- Testing mode
+"""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 import os
 
 class Settings(BaseSettings):
+    """
+    Application settings loaded from environment variables.
+    
+    This class defines all configuration parameters for the application,
+    with default values that can be overridden by environment variables.
+    """
     DATABASE_URL: str = "sqlite:///./test.db"
     SECRET_KEY: str = "your-secret-key"
     ALGORITHM: str = "HS256"
@@ -35,7 +57,17 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8"
     )
 
+@lru_cache()
 def get_settings():
+    """
+    Get application settings with caching.
+    
+    This function uses lru_cache to avoid reloading settings on each call,
+    improving performance.
+    
+    Returns:
+        Settings: The application settings instance
+    """
     return Settings()
 
 settings = get_settings()

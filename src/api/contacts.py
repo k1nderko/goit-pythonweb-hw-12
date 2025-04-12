@@ -1,3 +1,20 @@
+"""
+Contacts API Router Module
+
+This module provides the API endpoints for managing contacts in the application.
+It includes CRUD operations for contacts with rate limiting and authentication.
+
+Endpoints:
+- POST /: Create a new contact
+- GET /: List all contacts for the current user
+- GET /search: Search contacts by name or email
+- GET /{contact_id}: Get a specific contact
+- PUT /{contact_id}: Update a contact
+- DELETE /{contact_id}: Delete a contact
+
+All endpoints are protected with authentication and rate limiting.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List

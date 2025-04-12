@@ -1,3 +1,22 @@
+"""
+Database Models Module
+
+This module defines the SQLAlchemy models for the application's database schema.
+It includes models for users and their contacts, with proper relationships and constraints.
+
+Models:
+- User: Represents a user in the system with authentication and role management
+- Contact: Represents a contact entry belonging to a user
+- UserRole: Enum defining possible user roles (user, admin)
+
+Each model includes:
+- Primary keys and indexes
+- Required and optional fields
+- Relationships between models
+- Timestamps for creation and updates
+- Proper constraints and validations
+"""
+
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime, UTC

@@ -1,7 +1,11 @@
 Contacts API
-===========
+============
 
-The contacts API provides endpoints for managing user contacts.
+All endpoints in this section require authentication. Include the access token in the Authorization header:
+
+.. sourcecode:: http
+
+   Authorization: Bearer <access_token>
 
 Create Contact
 -------------
@@ -10,6 +14,11 @@ Create Contact
 
    Create a new contact.
 
+   **Request Headers:**
+
+   - ``Authorization: Bearer <access_token>``
+   - ``Content-Type: application/json``
+
    **Request body:**
 
    .. sourcecode:: json
@@ -20,8 +29,17 @@ Create Contact
         "email": "john.doe@example.com",
         "phone": "+1234567890",
         "birthday": "1990-01-01",
-        "address": "123 Main St"
+        "additional_data": "Additional notes"
       }
+
+   **Validation Rules:**
+
+   - ``first_name``: Required, non-empty string
+   - ``last_name``: Required, non-empty string
+   - ``email``: Valid email format
+   - ``phone``: Valid phone number format
+   - ``birthday``: Date in YYYY-MM-DD format
+   - ``additional_data``: Optional string
 
    **Response:**
 
@@ -34,53 +52,76 @@ Create Contact
         "email": "john.doe@example.com",
         "phone": "+1234567890",
         "birthday": "1990-01-01",
-        "address": "123 Main St",
-        "created_at": "2024-03-20T12:00:00",
-        "updated_at": "2024-03-20T12:00:00"
+        "additional_data": "Additional notes",
+        "created_at": "2024-03-15T10:30:00Z",
+        "updated_at": "2024-03-15T10:30:00Z"
+      }
+
+   **Error Response:**
+
+   .. sourcecode:: json
+
+      {
+        "detail": "Invalid input data"
       }
 
    :statuscode 201: Contact created successfully
    :statuscode 400: Invalid input data
-   :statuscode 401: Not authenticated
+   :statuscode 401: Unauthorized
+   :statuscode 429: Too many requests
 
-Get Contacts
------------
+Get All Contacts
+--------------
 
 .. http:get:: /api/contacts
 
-   Get all contacts for the authenticated user.
+   Retrieve all contacts for the authenticated user.
+
+   **Query Parameters:**
+
+   - ``page`` (optional, default=1): Page number for pagination
+   - ``per_page`` (optional, default=10): Number of items per page
+   - ``sort_by`` (optional, default="created_at"): Field to sort by
+   - ``order`` (optional, default="desc"): Sort order ("asc" or "desc")
 
    **Response:**
 
    .. sourcecode:: json
 
-      [
-        {
-          "id": 1,
-          "first_name": "John",
-          "last_name": "Doe",
-          "email": "john.doe@example.com",
-          "phone": "+1234567890",
-          "birthday": "1990-01-01",
-          "address": "123 Main St",
-          "created_at": "2024-03-20T12:00:00",
-          "updated_at": "2024-03-20T12:00:00"
-        }
-      ]
+      {
+        "items": [
+          {
+            "id": 1,
+            "first_name": "John",
+            "last_name": "Doe",
+            "email": "john.doe@example.com",
+            "phone": "+1234567890",
+            "birthday": "1990-01-01",
+            "additional_data": "Additional notes",
+            "created_at": "2024-03-15T10:30:00Z",
+            "updated_at": "2024-03-15T10:30:00Z"
+          }
+        ],
+        "total": 50,
+        "page": 1,
+        "per_page": 10,
+        "total_pages": 5
+      }
 
-   :statuscode 200: List of contacts
-   :statuscode 401: Not authenticated
+   :statuscode 200: Success
+   :statuscode 401: Unauthorized
+   :statuscode 429: Too many requests
 
 Get Contact
 ----------
 
 .. http:get:: /api/contacts/{contact_id}
 
-   Get a specific contact by ID.
+   Retrieve a specific contact by ID.
 
    **Parameters:**
 
-   - ``contact_id`` (integer) - ID of the contact
+   - ``contact_id`` (integer) - ID of the contact to retrieve
 
    **Response:**
 
@@ -93,25 +134,39 @@ Get Contact
         "email": "john.doe@example.com",
         "phone": "+1234567890",
         "birthday": "1990-01-01",
-        "address": "123 Main St",
-        "created_at": "2024-03-20T12:00:00",
-        "updated_at": "2024-03-20T12:00:00"
+        "additional_data": "Additional notes",
+        "created_at": "2024-03-15T10:30:00Z",
+        "updated_at": "2024-03-15T10:30:00Z"
       }
 
-   :statuscode 200: Contact details
-   :statuscode 401: Not authenticated
+   **Error Response:**
+
+   .. sourcecode:: json
+
+      {
+        "detail": "Contact not found"
+      }
+
+   :statuscode 200: Success
+   :statuscode 401: Unauthorized
    :statuscode 404: Contact not found
+   :statuscode 429: Too many requests
 
 Update Contact
 ------------
 
 .. http:put:: /api/contacts/{contact_id}
 
-   Update a specific contact.
+   Update an existing contact.
 
    **Parameters:**
 
-   - ``contact_id`` (integer) - ID of the contact
+   - ``contact_id`` (integer) - ID of the contact to update
+
+   **Request Headers:**
+
+   - ``Authorization: Bearer <access_token>``
+   - ``Content-Type: application/json``
 
    **Request body:**
 
@@ -123,8 +178,12 @@ Update Contact
         "email": "john.doe@example.com",
         "phone": "+1234567890",
         "birthday": "1990-01-01",
-        "address": "123 Main St"
+        "additional_data": "Updated notes"
       }
+
+   **Validation Rules:**
+
+   Same as Create Contact endpoint
 
    **Response:**
 
@@ -137,26 +196,35 @@ Update Contact
         "email": "john.doe@example.com",
         "phone": "+1234567890",
         "birthday": "1990-01-01",
-        "address": "123 Main St",
-        "created_at": "2024-03-20T12:00:00",
-        "updated_at": "2024-03-20T12:00:00"
+        "additional_data": "Updated notes",
+        "created_at": "2024-03-15T10:30:00Z",
+        "updated_at": "2024-03-15T11:00:00Z"
+      }
+
+   **Error Response:**
+
+   .. sourcecode:: json
+
+      {
+        "detail": "Contact not found"
       }
 
    :statuscode 200: Contact updated successfully
    :statuscode 400: Invalid input data
-   :statuscode 401: Not authenticated
+   :statuscode 401: Unauthorized
    :statuscode 404: Contact not found
+   :statuscode 429: Too many requests
 
 Delete Contact
 ------------
 
 .. http:delete:: /api/contacts/{contact_id}
 
-   Delete a specific contact.
+   Delete a contact.
 
    **Parameters:**
 
-   - ``contact_id`` (integer) - ID of the contact
+   - ``contact_id`` (integer) - ID of the contact to delete
 
    **Response:**
 
@@ -166,9 +234,18 @@ Delete Contact
         "message": "Contact deleted successfully"
       }
 
+   **Error Response:**
+
+   .. sourcecode:: json
+
+      {
+        "detail": "Contact not found"
+      }
+
    :statuscode 200: Contact deleted successfully
-   :statuscode 401: Not authenticated
+   :statuscode 401: Unauthorized
    :statuscode 404: Contact not found
+   :statuscode 429: Too many requests
 
 Search Contacts
 -------------
@@ -179,26 +256,43 @@ Search Contacts
 
    **Query Parameters:**
 
-   - ``query`` (string) - Search term (minimum 1 character)
+   - ``q`` (required): Search query string (minimum 2 characters)
+   - ``page`` (optional, default=1): Page number for pagination
+   - ``per_page`` (optional, default=10): Number of items per page
 
    **Response:**
 
    .. sourcecode:: json
 
-      [
-        {
-          "id": 1,
-          "first_name": "John",
-          "last_name": "Doe",
-          "email": "john.doe@example.com",
-          "phone": "+1234567890",
-          "birthday": "1990-01-01",
-          "address": "123 Main St",
-          "created_at": "2024-03-20T12:00:00",
-          "updated_at": "2024-03-20T12:00:00"
-        }
-      ]
+      {
+        "items": [
+          {
+            "id": 1,
+            "first_name": "John",
+            "last_name": "Doe",
+            "email": "john.doe@example.com",
+            "phone": "+1234567890",
+            "birthday": "1990-01-01",
+            "additional_data": "Additional notes",
+            "created_at": "2024-03-15T10:30:00Z",
+            "updated_at": "2024-03-15T10:30:00Z"
+          }
+        ],
+        "total": 5,
+        "page": 1,
+        "per_page": 10,
+        "total_pages": 1
+      }
 
-   :statuscode 200: List of matching contacts
+   **Error Response:**
+
+   .. sourcecode:: json
+
+      {
+        "detail": "Search query must be at least 2 characters long"
+      }
+
+   :statuscode 200: Success
    :statuscode 400: Invalid search query
-   :statuscode 401: Not authenticated 
+   :statuscode 401: Unauthorized
+   :statuscode 429: Too many requests 
